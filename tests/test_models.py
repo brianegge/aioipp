@@ -380,7 +380,7 @@ async def test_counters_defaults() -> None:
     assert not counters.impressions_completed_col
     assert counters.pages_completed is None
     assert counters.media_sheets_completed is None
-    assert counters.supported == ()
+    assert not counters.supported
 
 
 @pytest.mark.asyncio
