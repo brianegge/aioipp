@@ -363,6 +363,11 @@ async def test_counters() -> None:
     assert not counters.impressions_completed_col
     assert counters.pages_completed == 5678
     assert counters.media_sheets_completed == 9012
+    assert counters.supported == (
+        "impressions_completed",
+        "pages_completed",
+        "media_sheets_completed",
+    )
 
 
 @pytest.mark.asyncio
@@ -375,11 +380,12 @@ async def test_counters_defaults() -> None:
     assert not counters.impressions_completed_col
     assert counters.pages_completed is None
     assert counters.media_sheets_completed is None
+    assert counters.supported == ()
 
 
 @pytest.mark.asyncio
 async def test_counters_out_of_band() -> None:
-    """Test Counters model ignores out-of-band values.
+    """Test Counters model keeps out-of-band values as None but supported.
 
     The parser decodes out-of-band values (unknown, no-value) as strings.
     """
@@ -395,10 +401,15 @@ async def test_counters_out_of_band() -> None:
 
     counters = models.Counters.from_dict(data)
 
-    assert counters.impressions_completed == 7
-    assert counters.impressions_completed_col == {"monochrome": 7}
+    assert counters.impressions_completed is None
+    assert counters.impressions_completed_col == {"monochrome": 7, "full-color": None}
     assert counters.pages_completed is None
     assert counters.media_sheets_completed == 42
+    assert counters.supported == (
+        "impressions_completed",
+        "pages_completed",
+        "media_sheets_completed",
+    )
 
 
 @pytest.mark.asyncio
@@ -410,6 +421,7 @@ async def test_counters_col_out_of_band() -> None:
 
     assert counters.impressions_completed is None
     assert not counters.impressions_completed_col
+    assert counters.supported == ("impressions_completed",)
 
 
 @pytest.mark.asyncio
@@ -427,6 +439,23 @@ async def test_counters_col() -> None:
     assert counters
     assert counters.impressions_completed == 10
     assert counters.impressions_completed_col == {"monochrome": 0, "full-color": 10}
+    assert counters.supported == ("impressions_completed",)
+
+
+@pytest.mark.asyncio
+async def test_counters_col_incomplete_has_no_total() -> None:
+    """Test an incomplete collection does not produce an impressions total."""
+    data: dict[str, Any] = {
+        "printer-impressions-completed-col": {
+            "monochrome": 100,
+            "full-color": "",
+        },
+    }
+
+    counters = models.Counters.from_dict(data)
+
+    assert counters.impressions_completed is None
+    assert counters.impressions_completed_col == {"monochrome": 100, "full-color": None}
 
 
 @pytest.mark.asyncio

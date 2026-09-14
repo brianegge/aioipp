@@ -129,30 +129,40 @@ def _int_or_none(value: Any) -> int | None:
 class Counters:
     """Object holding page counter information from IPP.
 
-    Counters the printer does not report, or reports as an out-of-band
-    value, are None.
+    A counter is None when the printer does not report it or reports an
+    out-of-band value such as unknown. ``supported`` lists the counters the
+    printer reports at all, so a supported counter can still be None.
     """
 
     impressions_completed: int | None
-    impressions_completed_col: dict[str, int]
+    impressions_completed_col: dict[str, int | None]
     pages_completed: int | None
     media_sheets_completed: int | None
+    supported: tuple[str, ...] = ()
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> Counters:
         """Return Counters object from IPP response."""
         raw_col = data.get("printer-impressions-completed-col")
-        col: dict[str, int] = {}
+        col: dict[str, int | None] = {}
         if isinstance(raw_col, dict):
-            col = {
-                name: value
-                for name, value in raw_col.items()
-                if _int_or_none(value) is not None
-            }
+            col = {name: _int_or_none(value) for name, value in raw_col.items()}
 
         impressions = _int_or_none(data.get("printer-impressions-completed"))
-        if impressions is None and col:
-            impressions = sum(col.values())
+        if impressions is None and col and None not in col.values():
+            # Only a complete collection adds up to the total
+            impressions = sum(value for value in col.values() if value is not None)
+
+        supported = []
+        if (
+            "printer-impressions-completed" in data
+            or "printer-impressions-completed-col" in data
+        ):
+            supported.append("impressions_completed")
+        if "printer-pages-completed" in data:
+            supported.append("pages_completed")
+        if "printer-media-sheets-completed" in data:
+            supported.append("media_sheets_completed")
 
         return Counters(
             impressions_completed=impressions,
@@ -161,6 +171,7 @@ class Counters:
             media_sheets_completed=_int_or_none(
                 data.get("printer-media-sheets-completed"),
             ),
+            supported=tuple(supported),
         )
 
 
