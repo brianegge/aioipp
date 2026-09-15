@@ -3,7 +3,7 @@
 import pytest
 from syrupy.assertion import SnapshotAssertion
 
-from pyipp import IPPParseError, parser
+from pyipp import IPPParseError, enums, parser
 from pyipp.const import DEFAULT_CHARSET, DEFAULT_CHARSET_LANGUAGE, DEFAULT_PROTO_VERSION
 from pyipp.enums import IppOperation
 
@@ -99,6 +99,29 @@ def test_parse_ieee1284_device_id() -> None:
     assert result["MANUFACTURER"] == result["MFG"]
     assert result["MODEL"] == result["MDL"]
     assert result["COMMAND SET"] == result["CMD"]
+    assert result["SERIALNUMBER"] == result["SN"]
+
+
+def test_parse_ieee1284_device_id_serial_variants() -> None:
+    """Test that vendor serial number spellings map to SERIALNUMBER."""
+    # A real Kyocera TASKalfa MZ6001ci reports SER rather than SN.
+    kyocera = parser.parse_ieee1284_device_id(
+        "ID:TASKalfa MZ6001ci;MFG:Kyocera;MDL:TASKalfa MZ6001ci;SER:1FN6111961;",
+    )
+    assert kyocera["SERIALNUMBER"] == "1FN6111961"
+
+    assert (
+        parser.parse_ieee1284_device_id("MFG:Acme;SERN:ABC123;")["SERIALNUMBER"]
+        == "ABC123"
+    )
+
+    # An explicit long form always wins over a short alias.
+    both = parser.parse_ieee1284_device_id(
+        "MFG:Acme;SERIALNUMBER:LONG1;SN:SHORT1;",
+    )
+    assert both["SERIALNUMBER"] == "LONG1"
+
+    assert "SERIALNUMBER" not in parser.parse_ieee1284_device_id("MFG:Xerox;MDL:X;")
 
 
 def test_parse_ieee1284_device_id_manufacturer_only() -> None:
@@ -213,3 +236,21 @@ def test_parse_empty_attribute_group(snapshot: SnapshotAssertion) -> None:
 
     result = parser.parse(response)
     assert result == snapshot
+
+
+def test_parse_attribute_unknown_enum_value() -> None:
+    """Test that an unknown enum value does not fail the whole response."""
+    # finishings-default carrying 0x2710, a value no IPP revision defines.
+    data = b"\x23\x00\x12finishings-default\x00\x04\x00\x00\x27\x10"
+    result, _ = parser.parse_attribute(data, 0)
+
+    assert result["value"] == 0x2710
+
+
+def test_parse_attribute_known_enum_value() -> None:
+    """Test that a known enum value is still resolved to its enum member."""
+    # 0x0E is jog-offset, reported by the Xerox AltaLink C8135.
+    data = b"\x23\x00\x12finishings-default\x00\x04\x00\x00\x00\x0e"
+    result, _ = parser.parse_attribute(data, 0)
+
+    assert result["value"] is enums.IppFinishing.JOG_OFFSET
