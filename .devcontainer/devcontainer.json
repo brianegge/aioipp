@@ -19,9 +19,10 @@
       "settings": {
         "[python]": {
           "editor.codeActionsOnSave": {
-            "source.fixAll": true,
-            "source.organizeImports": true
-          }
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
+          },
+          "editor.defaultFormatter": "charliermarsh.ruff"
         },
         "coverage-gutters.customizable.context-menu": true,
         "coverage-gutters.customizable.status-bar-toggler-watchCoverageAndVisibleEditors-enabled": true,
@@ -30,10 +31,6 @@
         "coverage-gutters.xmlname": "coverage.xml",
         "python.analysis.extraPaths": ["${workspaceFolder}/src"],
         "python.defaultInterpreterPath": ".venv/bin/python",
-        "python.formatting.provider": "black",
-        "python.linting.enabled": true,
-        "python.linting.mypyEnabled": true,
-        "python.linting.pylintEnabled": true,
         "python.testing.cwd": "${workspaceFolder}",
         "python.testing.pytestArgs": ["--cov-report=xml"],
         "python.testing.pytestEnabled": true,
@@ -44,11 +41,12 @@
     }
   },
   "features": {
-    "ghcr.io/devcontainers-contrib/features/poetry:2": {},
+    "ghcr.io/devcontainers-extra/features/poetry:2": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/node:2": {},
     "ghcr.io/devcontainers/features/python:1": {
-      "installTools": false
+      "installTools": false,
+      "version": "3.14"
     }
   },
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
