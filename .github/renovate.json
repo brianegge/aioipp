@@ -1,9 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
   ],
   "forkProcessing": "enabled",
+  "rebaseWhen": "behind-base-branch",
   "timezone": "America/Chicago",
   "schedule": [
     "* * * * 6"
@@ -13,8 +15,10 @@
   ],
   "dependencyDashboard": true,
   "labels": [
-    "dependencies"
+    "dependencies",
+    "no-stale"
   ],
+  "commitMessagePrefix": "⬆️",
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true,
@@ -48,7 +52,8 @@
         "minor",
         "patch"
       ],
-      "automerge": true
+      "automerge": true,
+      "groupName": "python dependencies"
     },
     {
       "matchManagers": [
@@ -69,7 +74,8 @@
         "minor",
         "patch"
       ],
-      "automerge": true
+      "automerge": true,
+      "groupName": "javascript dependencies"
     },
     {
       "matchManagers": [
@@ -88,7 +94,8 @@
         "minor",
         "patch"
       ],
-      "automerge": true
+      "automerge": true,
+      "groupName": "github actions"
     }
   ]
 }
