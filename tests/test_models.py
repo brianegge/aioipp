@@ -516,3 +516,36 @@ async def test_printer_with_single_supported_uri_with_security() -> None:
     assert printer.uris[0].uri == "ipps://10.104.12.95:631/ipp/print"
     assert printer.uris[0].authentication == "basic"
     assert printer.uris[0].security == "tls"
+
+
+def test_info_firmware_version_list() -> None:
+    """Test firmware version is joined into a single string when a list."""
+    info = models.Info.from_dict(
+        {
+            "printer-name": "Lexmark MC2425adw",
+            "printer-firmware-string-version": [
+                "2.0",
+                "1.02",
+                "1.7",
+                "1.5",
+                "CXNZJ.250.038",
+            ],
+        },
+    )
+
+    assert info.version == "2.0, 1.02, 1.7, 1.5, CXNZJ.250.038"
+
+
+def test_info_firmware_version_variants() -> None:
+    """Test firmware version normalization for other value shapes."""
+    assert models.Info.from_dict({}).version is None
+    assert (
+        models.Info.from_dict({"printer-firmware-string-version": []}).version is None
+    )
+    assert (
+        models.Info.from_dict({"printer-firmware-string-version": ["", "1.13"]}).version
+        == "1.13"
+    )
+    assert (
+        models.Info.from_dict({"printer-firmware-string-version": 105}).version == "105"
+    )
