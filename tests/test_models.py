@@ -571,3 +571,178 @@ def test_info_firmware_version_variants() -> None:
     assert (
         models.Info.from_dict({"printer-firmware-string-version": 105}).version == "105"
     )
+
+
+def test_tray_from_string() -> None:
+    """Test Tray model parsing of a PWG key=value tray string."""
+    # A real Xerox AltaLink C8135 input tray.
+    tray = models.Tray.from_string(
+        "type=sheetFeedAutoRemovableTray;mediafeed=21590;mediaxfeed=27940;"
+        "maxcapacity=520;level=130;status=0;name=Tray1",
+    )
+
+    assert tray.name == "Tray1"
+    assert tray.tray_type == "sheetFeedAutoRemovableTray"
+    assert tray.level == 130
+    assert tray.max_capacity == 520
+    assert tray.status == 0
+
+
+def test_tray_out_of_band_values() -> None:
+    """Test that out-of-band tray levels become None rather than a count."""
+    # A real Epson ET-2980 feeder, which reports neither level nor capacity.
+    tray = models.Tray.from_string(
+        "type=sheetFeedAutoNonRemovableTray;dimunit=micrometers;mediafeed=279400;"
+        "maxcapacity=-2;level=-2;status=0;name=Rear Auto Sheet Feeder;",
+    )
+
+    assert tray.name == "Rear Auto Sheet Feeder"
+    assert tray.level is None
+    assert tray.max_capacity is None
+
+
+def test_tray_repeated_keys() -> None:
+    """Test that a repeated key keeps the first value.
+
+    A real Kyocera TASKalfa MZ6001ci repeats mediafeed/mediaxfeed per tray.
+    """
+    tray = models.Tray.from_string(
+        "type=other;mediafeed=85000;mediaxfeed=110000;mediafeed=110000;"
+        "mediaxfeed=85000;maxcapacity=150;level=0;name=MP Tray",
+    )
+
+    assert tray.tray_type == "other"
+    assert tray.level == 0
+    assert tray.max_capacity == 150
+
+
+def test_tray_garbage() -> None:
+    """Test that an unparsable tray string does not raise."""
+    tray = models.Tray.from_string("Unknown")
+
+    assert tray.name is None
+    assert tray.tray_type is None
+    assert tray.level is None
+
+
+def test_status() -> None:
+    """Test Status model."""
+    status = models.Status.from_dict(
+        {
+            "printer-is-accepting-jobs": True,
+            "queued-job-count": 3,
+            "printer-alert-description": ["Tray 5 (Bypass) is empty.", "Ready."],
+            "media-ready": "na_letter_8.5x11in",
+        },
+    )
+
+    assert status.accepting_jobs is True
+    assert status.queued_jobs == 3
+    assert status.alerts == ["Tray 5 (Bypass) is empty.", "Ready."]
+    # A 1setOf reported as a bare value is still a list
+    assert status.media_ready == ["na_letter_8.5x11in"]
+    assert status.supported == (
+        "accepting_jobs",
+        "queued_jobs",
+        "alerts",
+        "media_ready",
+    )
+
+
+def test_status_defaults() -> None:
+    """Test that a printer reporting nothing supports nothing."""
+    status = models.Status.from_dict({})
+
+    assert status.accepting_jobs is None
+    assert status.queued_jobs is None
+    assert status.alerts == []
+    assert status.media_ready == []
+    assert status.supported == ()
+
+
+def test_status_out_of_band() -> None:
+    """Test that out-of-band values are not mistaken for data.
+
+    The attribute is still reported, so it stays in ``supported``.
+    """
+    status = models.Status.from_dict(
+        {"queued-job-count": "unknown", "printer-is-accepting-jobs": "unknown"},
+    )
+
+    assert status.queued_jobs is None
+    assert status.accepting_jobs is None
+    assert "queued_jobs" in status.supported
+    # A non-boolean cannot be reported as a supported boolean
+    assert "accepting_jobs" not in status.supported
+
+
+def test_info_icons_and_speed() -> None:
+    """Test the static Info fields added for printer icons and speed."""
+    info = models.Info.from_dict(
+        {
+            "printer-icons": [
+                "https://192.168.1.158/printer-icon/machine_128.png",
+                "https://192.168.1.158/printer-icon/machine_512.png",
+            ],
+            "pages-per-minute": 60,
+            "pages-per-minute-color": 60,
+        },
+    )
+
+    assert info.icons == [
+        "https://192.168.1.158/printer-icon/machine_128.png",
+        "https://192.168.1.158/printer-icon/machine_512.png",
+    ]
+    assert info.pages_per_minute == 60
+    assert info.pages_per_minute_color == 60
+
+
+def test_info_single_icon() -> None:
+    """Test that a single icon reported as a bare value becomes a list."""
+    info = models.Info.from_dict(
+        {"printer-icons": "http://192.168.1.64/images/printer-icon128.png"},
+    )
+
+    assert info.icons == ["http://192.168.1.64/images/printer-icon128.png"]
+
+
+def test_info_no_icons() -> None:
+    """Test that a printer reporting no icons yields an empty list."""
+    info = models.Info.from_dict({})
+
+    assert info.icons == []
+    assert info.pages_per_minute is None
+    assert info.pages_per_minute_color is None
+
+
+def test_printer_trays() -> None:
+    """Test that input and output trays are parsed onto the Printer."""
+    printer = models.Printer.from_dict(
+        {
+            "printer-input-tray": [
+                "type=other;maxcapacity=520;level=130;status=0;name=auto",
+                "type=sheetFeedAutoRemovableTray;maxcapacity=520;level=130;name=Tray1",
+            ],
+            "printer-output-tray": "type=unRemovableBin;maxcapacity=500;name=Finisher",
+        },
+    )
+
+    assert len(printer.input_trays) == 2
+    assert printer.input_trays[1].name == "Tray1"
+    assert printer.input_trays[1].level == 130
+
+    assert len(printer.output_trays) == 1
+    assert printer.output_trays[0].name == "Finisher"
+    assert printer.output_trays[0].max_capacity == 500
+
+
+def test_printer_without_trays() -> None:
+    """Test that a printer reporting no trays yields empty lists.
+
+    A real Samsung M288x reports neither tray attribute.
+    """
+    printer = models.Printer.from_dict({})
+
+    assert printer.input_trays == []
+    assert printer.output_trays == []
+    assert printer.status.supported == ()
