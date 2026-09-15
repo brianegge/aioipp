@@ -1,0 +1,62 @@
+---
+name: Report a bug in the aioipp library
+description: A printer fails to parse, returns wrong values, or the library raises an error.
+labels: ["bugfix"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. If the problem is with the
+        Home Assistant integration rather than the library itself, please use
+        the Home Assistant issue tracker instead (see the link on the previous
+        page).
+
+        The most useful thing you can attach is a raw capture of the
+        printer's response. With Python 3.14+ installed, run:
+
+        ```
+        pipx run aioipp ipp://PRINTER_IP:631/ipp/print
+        ```
+
+        or `pip install aioipp` and then `python -m pyipp ipp://PRINTER_IP:631/ipp/print`.
+        This prints what the library understands and writes `ipp-PRINTER_IP.bin`
+        next to it. The capture may contain the printer's serial number and UUID.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: What did you expect and what did you get instead?
+    validations:
+      required: true
+  - type: input
+    id: printer
+    attributes:
+      label: Printer make and model
+      placeholder: SHARP MX-3071
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Printer firmware version
+      description: Shown in the diagnostics output as `printer-firmware-string-version`, if the printer reports it.
+  - type: input
+    id: version
+    attributes:
+      label: aioipp version
+      description: Printed on the first line of the diagnostics output, or `pip show aioipp`.
+  - type: textarea
+    id: output
+    attributes:
+      label: Diagnostics output
+      description: Paste the full output of the command above, including any traceback.
+      render: text
+  - type: textarea
+    id: capture
+    attributes:
+      label: Raw capture
+      description: |
+        Drag and drop the `ipp-*.bin` file here (zip it first if GitHub refuses the
+        extension). If you cannot run the script, the output of
+        `ipptool -tv ipp://PRINTER_IP:631/ipp/print get-printer-attributes.test`
+        from CUPS is a good substitute.

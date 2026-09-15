@@ -133,7 +133,7 @@ def test_parse_ieee1284_device_id_malformed(device_id: str) -> None:
     """
     result = parser.parse_ieee1284_device_id(device_id)
 
-    assert result == {}
+    assert not result
 
 
 def test_parse_ieee1284_device_id_partially_malformed() -> None:
