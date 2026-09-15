@@ -14,6 +14,23 @@ from .parser import parse_ieee1284_device_id, parse_make_and_model
 PRINTER_STATES = {3: "idle", 4: "printing", 5: "stopped"}
 
 
+def _firmware_version(value: Any) -> str | None:
+    """Return a single version string for printer-firmware-string-version.
+
+    The attribute is defined as 1setOf text, so printers with several firmware
+    components (Brother, Lexmark, Samsung, Xerox) report a list of versions.
+    Join them into one string so consumers always receive ``str | None``.
+    """
+    if value is None:
+        return None
+
+    if isinstance(value, list):
+        versions = [str(item) for item in value if item not in (None, "")]
+        return ", ".join(versions) if versions else None
+
+    return str(value)
+
+
 @dataclass
 class Info:
     """Object holding information from IPP."""
@@ -89,7 +106,7 @@ class Info:
             serial=serial,
             uptime=data.get("printer-up-time", 0),
             uuid=uuid[9:] if uuid else None,  # strip urn:uuid: from uuid
-            version=data.get("printer-firmware-string-version"),
+            version=_firmware_version(data.get("printer-firmware-string-version")),
             more_info=data.get("printer-more-info"),
         )
 
