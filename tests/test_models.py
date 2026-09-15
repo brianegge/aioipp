@@ -655,9 +655,9 @@ def test_status_defaults() -> None:
 
     assert status.accepting_jobs is None
     assert status.queued_jobs is None
-    assert status.alerts == []
-    assert status.media_ready == []
-    assert status.supported == ()
+    assert not status.alerts
+    assert not status.media_ready
+    assert not status.supported
 
 
 def test_status_out_of_band() -> None:
@@ -710,7 +710,7 @@ def test_info_no_icons() -> None:
     """Test that a printer reporting no icons yields an empty list."""
     info = models.Info.from_dict({})
 
-    assert info.icons == []
+    assert not info.icons
     assert info.pages_per_minute is None
     assert info.pages_per_minute_color is None
 
@@ -743,6 +743,6 @@ def test_printer_without_trays() -> None:
     """
     printer = models.Printer.from_dict({})
 
-    assert printer.input_trays == []
-    assert printer.output_trays == []
-    assert printer.status.supported == ()
+    assert not printer.input_trays
+    assert not printer.output_trays
+    assert not printer.status.supported
