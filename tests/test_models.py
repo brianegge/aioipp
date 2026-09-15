@@ -746,3 +746,131 @@ def test_printer_without_trays() -> None:
     assert not printer.input_trays
     assert not printer.output_trays
     assert not printer.status.supported
+
+
+@pytest.mark.parametrize(
+    ("fixture", "make", "model"),
+    [
+        ("xerox-altalink-c8135", "Xerox", "AltaLink C8135"),
+        ("samsung-m288x", "Samsung", "M288x Series"),
+        ("epson-et2980", "EPSON", "ET-2980 Series"),
+        ("kyocera-taskalfa-mz6001ci", "Kyocera", "TASKalfa MZ6001ci"),
+    ],
+)
+def test_real_printer_reports_uuid(fixture: str, make: str, model: str) -> None:
+    """Test that printer-uuid is parsed from real hardware responses.
+
+    The attribute was absent from DEFAULT_PRINTER_ATTRIBUTES, so Info.uuid
+    was None for every printer regardless of what the printer supported.
+    """
+    parsed = parser.parse(
+        load_fixture_binary(f"get-printer-attributes-{fixture}.bin"),
+    )
+    info = models.Info.from_dict(parsed["printers"][0])
+
+    assert info.manufacturer == make
+    assert info.model == model
+    assert info.uuid is not None
+    assert not info.uuid.startswith("urn:uuid:")
+
+
+def test_real_xerox_altalink() -> None:
+    """Test the new models against a real Xerox AltaLink C8135."""
+    parsed = parser.parse(
+        load_fixture_binary("get-printer-attributes-xerox-altalink-c8135.bin"),
+    )
+    printer = models.Printer.from_dict(parsed["printers"][0])
+
+    assert printer.info.uuid == "b848e7d8-9910-11ed-b71e-4ec3f64505a5"
+    assert printer.info.pages_per_minute == 35
+    assert printer.info.icons == [
+        "http://192.168.1.61/images/mimics/lipari/128x128.png",
+        "http://192.168.1.61/images/mimics/lipari/512x512.png",
+    ]
+
+    assert printer.status.accepting_jobs is True
+    assert printer.status.queued_jobs == 0
+    assert printer.status.media_ready == ["na_letter_8.5x11in"]
+    assert "Tray 5 (Bypass) is empty." in printer.status.alerts[0]
+
+    # A removable tray reporting a real sheet count
+    tray = printer.input_trays[1]
+    assert tray.name == "Tray1"
+    assert tray.tray_type == "sheetFeedAutoRemovableTray"
+    assert tray.level == 130
+    assert tray.max_capacity == 520
+
+    # This printer reports no serial in its device ID and no page counters
+    assert printer.info.serial is None
+    assert not printer.counters.supported
+
+
+def test_real_kyocera_taskalfa() -> None:
+    """Test the new models against a real Kyocera TASKalfa MZ6001ci."""
+    parsed = parser.parse(
+        load_fixture_binary("get-printer-attributes-kyocera-taskalfa-mz6001ci.bin"),
+    )
+    printer = models.Printer.from_dict(parsed["printers"][0])
+
+    # SER rather than SN in the device ID
+    assert printer.info.serial == "1FN6111961"
+    assert printer.info.pages_per_minute == 60
+
+    assert printer.status.alerts == ["Ready.", "Sleeping...", "Preparing to print..."]
+    assert printer.status.media_ready == [
+        "na_letter_8.5x11in",
+        "na_letter_8.5x11in",
+        "na_legal_8.5x14in",
+        "na_ledger_11x17in",
+    ]
+
+    # An empty tray is level 0, which must not be confused with out-of-band
+    mp_tray = next(t for t in printer.input_trays if t.name == "MP Tray")
+    assert mp_tray.level == 0
+    assert mp_tray.max_capacity == 150
+
+    cassette = next(t for t in printer.input_trays if t.name == "Cassette 1")
+    assert cassette.level == 350
+
+
+def test_real_epson_et2980() -> None:
+    """Test the new models against a real Epson ET-2980."""
+    parsed = parser.parse(
+        load_fixture_binary("get-printer-attributes-epson-et2980.bin"),
+    )
+    printer = models.Printer.from_dict(parsed["printers"][0])
+
+    assert printer.info.serial == "58435A573130363900"
+    assert printer.info.location == ""
+
+    # The feeder exists but reports level and capacity as out of band
+    assert len(printer.input_trays) == 1
+    assert printer.input_trays[0].name == "Rear Auto Sheet Feeder"
+    assert printer.input_trays[0].level is None
+    assert printer.input_trays[0].max_capacity is None
+
+    assert [marker.marker_type for marker in printer.markers] == ["ink"] * 4
+
+
+def test_real_samsung_m288x() -> None:
+    """Test the new models against a real Samsung M288x.
+
+    This printer reports neither tray attribute, so it exercises the case
+    where a supported-looking field is simply absent.
+    """
+    parsed = parser.parse(
+        load_fixture_binary("get-printer-attributes-samsung-m288x.bin"),
+    )
+    printer = models.Printer.from_dict(parsed["printers"][0])
+
+    assert printer.info.uuid == "16a65700-007c-1000-bb49-84251929a12f"
+    assert printer.info.location == "Sitting on the dock"
+
+    assert not printer.input_trays
+    assert not printer.output_trays
+    assert not printer.status.alerts
+    assert not printer.status.media_ready
+
+    # but it does report the queue attributes
+    assert printer.status.supported == ("accepting_jobs", "queued_jobs")
+    assert printer.status.queued_jobs == 0
