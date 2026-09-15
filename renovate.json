@@ -1,16 +1,26 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
-    "schedule:daily"
+    "config:recommended"
   ],
+  "forkProcessing": "enabled",
   "timezone": "America/Chicago",
+  "schedule": [
+    "* * * * 6"
+  ],
+  "automergeSchedule": [
+    "* * * * 6"
+  ],
+  "dependencyDashboard": true,
   "labels": [
     "dependencies"
   ],
   "lockFileMaintenance": {
     "enabled": true,
-    "automerge": true
+    "automerge": true,
+    "schedule": [
+      "* * * * 6"
+    ]
   },
   "packageRules": [
     {
