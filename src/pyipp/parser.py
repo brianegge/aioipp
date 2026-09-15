@@ -18,12 +18,16 @@ def parse_ieee1284_device_id(device_id: str) -> dict[str, str]:
     if not device_id:
         return {}
 
-    device_id = device_id.strip(";")
     device_info: dict[str, str] = {}
 
     for pair in device_id.split(";"):
-        key, value = pair.split(":", 2)
-        device_info[key.strip()] = value.strip()
+        # Some printers report a non-IEEE 1284 value such as "Unknown";
+        # skip any segment that is not a KEY:VALUE pair.
+        key, sep, value = pair.partition(":")
+        if not sep or not (key := key.strip()):
+            continue
+
+        device_info[key] = value.strip()
 
     if not device_info.get("MANUFACTURER") and device_info.get("MFG"):
         device_info["MANUFACTURER"] = device_info["MFG"]

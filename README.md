@@ -36,6 +36,46 @@ if __name__ == "__main__":
     loop.run_until_complete(main())
 ```
 
+## Reporting a problem with your printer
+
+Printers vary a lot in how closely they follow the IPP specification. If your
+printer fails to set up in Home Assistant, or a value looks wrong, the most
+useful thing you can provide is a raw capture of what the printer sends. The
+package ships a small diagnostics command for exactly that:
+
+```bash
+pipx run aioipp ipp://192.168.1.10:631/ipp/print
+```
+
+or, in an environment where the package is already installed:
+
+```bash
+python -m pyipp ipp://192.168.1.10:631/ipp/print
+```
+
+Use `ipps://` if the printer requires TLS, and `--ipp-version 1.1` for older
+devices. The command prints the attributes the library received, what it parsed
+them into, and a full traceback if parsing failed. It always writes the raw
+response to `ipp-<host>.bin` in the current directory.
+
+Then [open an issue](https://github.com/brianegge/aioipp/issues/new?template=bug_report.yml)
+with:
+
+- the printer make, model and firmware version
+- the full output of the command
+- the `ipp-<host>.bin` file (zip it if GitHub refuses the extension)
+
+The capture may contain the printer's serial number and UUID. Remove them if
+you consider them private. Captured files become regression tests in
+`tests/fixtures`, so they are the fastest route to a fix.
+
+If you cannot install Python packages, the `ipptool` command that ships with
+CUPS on Linux and macOS is a good substitute:
+
+```bash
+ipptool -tv ipp://192.168.1.10:631/ipp/print get-printer-attributes.test
+```
+
 ## Setting up development environment
 
 This Python project is fully managed using the [Poetry](https://python-poetry.org) dependency
