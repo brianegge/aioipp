@@ -84,8 +84,8 @@ class Info:
         if parsed_device_id.get("CMD") is not None and len(parsed_device_id["CMD"]) > 0:
             cmd = parsed_device_id["CMD"]
 
-        if parsed_device_id.get("SN") is not None and len(parsed_device_id["SN"]) > 0:
-            serial = parsed_device_id["SN"]
+        if len(parsed_device_id.get("SERIALNUMBER") or "") > 0:
+            serial = parsed_device_id["SERIALNUMBER"]
 
         if len(make_model) > 0:
             name = make_model

@@ -38,6 +38,14 @@ def parse_ieee1284_device_id(device_id: str) -> dict[str, str]:
     if not device_info.get("COMMAND SET") and device_info.get("CMD"):
         device_info["COMMAND SET"] = device_info["CMD"]
 
+    # IEEE 1284 spells the serial number "SERIALNUMBER"/"SN", but vendors
+    # (Kyocera, HP) commonly emit "SER" or "SERN" instead.
+    if not device_info.get("SERIALNUMBER"):
+        for key in ("SN", "SERN", "SER"):
+            if device_info.get(key):
+                device_info["SERIALNUMBER"] = device_info[key]
+                break
+
     return device_info
 
 
@@ -117,7 +125,18 @@ def parse_attribute(  # noqa: PLR0912, PLR0915
             and resolved_attr_name in ATTRIBUTE_ENUM_MAP
         ):
             enum_class = ATTRIBUTE_ENUM_MAP[resolved_attr_name]
-            attribute["value"] = enum_class(attribute["value"])
+            try:
+                attribute["value"] = enum_class(attribute["value"])
+            except ValueError:
+                # Printers report values from newer IPP revisions and private
+                # vendor extensions. Keep the raw integer rather than failing
+                # the whole response.
+                _LOGGER.debug(
+                    "Unknown %s value %s for attribute %s",
+                    enum_class.__name__,
+                    attribute["value"],
+                    resolved_attr_name,
+                )
 
         offset += 4
         _LOGGER.debug("Attribute Value: %s", attribute["value"])
