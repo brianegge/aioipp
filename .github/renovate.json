@@ -52,7 +52,8 @@
         "minor",
         "patch"
       ],
-      "automerge": true
+      "automerge": true,
+      "groupName": "python dependencies"
     },
     {
       "matchManagers": [
@@ -73,7 +74,8 @@
         "minor",
         "patch"
       ],
-      "automerge": true
+      "automerge": true,
+      "groupName": "javascript dependencies"
     },
     {
       "matchManagers": [
@@ -92,7 +94,8 @@
         "minor",
         "patch"
       ],
-      "automerge": true
+      "automerge": true,
+      "groupName": "github actions"
     }
   ]
 }
