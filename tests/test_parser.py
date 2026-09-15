@@ -117,6 +117,45 @@ def test_parse_ieee1284_device_id_empty() -> None:
     assert isinstance(result, dict)
 
 
+@pytest.mark.parametrize(
+    "device_id",
+    [
+        "Unknown",
+        "Unknown;",
+        "not a device id",
+        ";;",
+    ],
+)
+def test_parse_ieee1284_device_id_malformed(device_id: str) -> None:
+    """Test the parse_ieee1284_device_id method with a non-IEEE 1284 value.
+
+    Some printers (e.g. SHARP MX-3060V / MX-3071) report "Unknown".
+    """
+    result = parser.parse_ieee1284_device_id(device_id)
+
+    assert result == {}
+
+
+def test_parse_ieee1284_device_id_partially_malformed() -> None:
+    """Test the parse_ieee1284_device_id method skips segments without a colon."""
+    result = parser.parse_ieee1284_device_id("MFG:SHARP;Unknown;MDL:MX-3071;;")
+
+    assert result == {
+        "MFG": "SHARP",
+        "MDL": "MX-3071",
+        "MANUFACTURER": "SHARP",
+        "MODEL": "MX-3071",
+    }
+
+
+def test_parse_ieee1284_device_id_value_with_colons() -> None:
+    """Test the parse_ieee1284_device_id method keeps colons inside values."""
+    result = parser.parse_ieee1284_device_id("MFG:HP;URL:http://example.com:80/;")
+
+    assert result["MFG"] == "HP"
+    assert result["URL"] == "http://example.com:80/"
+
+
 def test_parse_make_and_model() -> None:
     """Test the parse_make_and_model method."""
     result = parser.parse_make_and_model("")

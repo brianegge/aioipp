@@ -518,6 +518,28 @@ async def test_printer_with_single_supported_uri_with_security() -> None:
     assert printer.uris[0].security == "tls"
 
 
+def test_info_malformed_device_id() -> None:
+    """Test Info model with a non-IEEE 1284 printer-device-id.
+
+    SHARP MX-3060V / MX-3071 report the literal string "Unknown".
+    """
+    info = models.Info.from_dict(
+        {
+            "printer-name": "ipp/print",
+            "printer-make-and-model": "SHARP MX-3071",
+            "printer-device-id": "Unknown",
+            "printer-uri-supported": ["ipp://192.168.1.10:631/ipp/print"],
+        },
+    )
+
+    assert info
+    assert info.name == "SHARP MX-3071"
+    assert info.manufacturer == "SHARP"
+    assert info.model == "MX-3071"
+    assert info.command_set is None
+    assert info.serial is None
+
+
 def test_info_firmware_version_list() -> None:
     """Test firmware version is joined into a single string when a list."""
     info = models.Info.from_dict(
