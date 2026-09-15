@@ -3,7 +3,7 @@
 # pylint: disable=R0912,R0915
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -31,6 +31,53 @@ def _firmware_version(value: Any) -> str | None:
     return str(value)
 
 
+def _as_list(value: Any) -> list[Any]:
+    """Return value as a list.
+
+    IPP 1setOf attributes arrive as a bare value when the printer reports a
+    single entry, so normalise both shapes to a list.
+    """
+    if value is None:
+        return []
+
+    return value if isinstance(value, list) else [value]
+
+
+def _parse_keyword_string(value: str) -> dict[str, str]:
+    """Parse a PWG "key=value;" string such as printer-input-tray.
+
+    Keys may repeat (Kyocera reports several mediafeed pairs per tray); the
+    first occurrence wins, which is the one describing the tray itself.
+    """
+    parsed: dict[str, str] = {}
+
+    for pair in value.split(";"):
+        key, sep, val = pair.partition("=")
+        if not sep or not (key := key.strip().lower()):
+            continue
+
+        parsed.setdefault(key, val.strip())
+
+    return parsed
+
+
+def _tray_int(value: str | None) -> int | None:
+    """Return a tray level or capacity, or None when out of band.
+
+    PWG 5107.2 uses negative values for out-of-band conditions: -1 other,
+    -2 unknown and -3 no limit. None of those are a sheet count.
+    """
+    if value is None:
+        return None
+
+    try:
+        number = int(value)
+    except ValueError:
+        return None
+
+    return number if number >= 0 else None
+
+
 @dataclass
 class Info:
     """Object holding information from IPP."""
@@ -48,6 +95,9 @@ class Info:
     uuid: str | None = None
     version: str | None = None
     more_info: str | None = None
+    icons: list[str] = field(default_factory=list)
+    pages_per_minute: int | None = None
+    pages_per_minute_color: int | None = None
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> Info:
@@ -108,6 +158,9 @@ class Info:
             uuid=uuid[9:] if uuid else None,  # strip urn:uuid: from uuid
             version=_firmware_version(data.get("printer-firmware-string-version")),
             more_info=data.get("printer-more-info"),
+            icons=[str(icon) for icon in _as_list(data.get("printer-icons")) if icon],
+            pages_per_minute=_int_or_none(data.get("pages-per-minute")),
+            pages_per_minute_color=_int_or_none(data.get("pages-per-minute-color")),
         )
 
 
@@ -122,6 +175,34 @@ class Marker:
     level: int
     low_level: int
     high_level: int
+
+
+@dataclass
+class Tray:
+    """Object holding input or output tray info from IPP.
+
+    ``level`` and ``max_capacity`` are None when the printer reports an
+    out-of-band value, so a tray that exists can still report no level.
+    """
+
+    name: str | None
+    tray_type: str | None
+    level: int | None
+    max_capacity: int | None
+    status: int | None
+
+    @staticmethod
+    def from_string(value: str) -> Tray:
+        """Return Tray object from a PWG "key=value;" tray string."""
+        parsed = _parse_keyword_string(value)
+
+        return Tray(
+            name=parsed.get("name") or None,
+            tray_type=parsed.get("type") or None,
+            level=_tray_int(parsed.get("level")),
+            max_capacity=_tray_int(parsed.get("maxcapacity")),
+            status=_tray_int(parsed.get("status")),
+        )
 
 
 @dataclass
@@ -193,6 +274,55 @@ class Counters:
 
 
 @dataclass
+class Status:
+    """Object holding queue and alert information from IPP.
+
+    Follows the same contract as :class:`Counters`: a value is None or empty
+    when the printer does not report it, and ``supported`` lists the fields
+    the printer reports at all, so a supported field can still be None.
+    """
+
+    accepting_jobs: bool | None
+    queued_jobs: int | None
+    alerts: list[str]
+    media_ready: list[str]
+    supported: tuple[str, ...] = ()
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> Status:
+        """Return Status object from IPP response."""
+        accepting = data.get("printer-is-accepting-jobs")
+        if not isinstance(accepting, bool):
+            accepting = None
+
+        supported = []
+        if accepting is not None:
+            supported.append("accepting_jobs")
+        if "queued-job-count" in data:
+            supported.append("queued_jobs")
+        if "printer-alert-description" in data:
+            supported.append("alerts")
+        if "media-ready" in data:
+            supported.append("media_ready")
+
+        return Status(
+            accepting_jobs=accepting,
+            queued_jobs=_int_or_none(data.get("queued-job-count")),
+            alerts=[
+                str(alert)
+                for alert in _as_list(data.get("printer-alert-description"))
+                if alert not in (None, "")
+            ],
+            media_ready=[
+                str(media)
+                for media in _as_list(data.get("media-ready"))
+                if media not in (None, "")
+            ],
+            supported=tuple(supported),
+        )
+
+
+@dataclass
 class State:
     """Object holding the IPP printer state."""
 
@@ -223,6 +353,9 @@ class Printer:
     counters: Counters
     markers: list[Marker]
     state: State
+    status: Status
+    input_trays: list[Tray]
+    output_trays: list[Tray]
     uris: list[Uri]
     booted_at: datetime
 
@@ -232,7 +365,10 @@ class Printer:
             "info": asdict(self.info),
             "counters": asdict(self.counters),
             "state": asdict(self.state),
+            "status": asdict(self.status),
             "markers": [asdict(marker) for marker in self.markers],
+            "input_trays": [asdict(tray) for tray in self.input_trays],
+            "output_trays": [asdict(tray) for tray in self.output_trays],
             "uris": [asdict(uri) for uri in self.uris],
             "booted_at": self.booted_at,
         }
@@ -245,6 +381,9 @@ class Printer:
         self.counters = Counters.from_dict(data)
         self.markers = Printer.merge_marker_data(data)
         self.state = State.from_dict(data)
+        self.status = Status.from_dict(data)
+        self.input_trays = Printer.parse_trays(data, "printer-input-tray")
+        self.output_trays = Printer.parse_trays(data, "printer-output-tray")
         self.uris = Printer.merge_uri_data(data)
 
         if self.info.uptime < last_uptime:
@@ -262,9 +401,21 @@ class Printer:
             counters=Counters.from_dict(data),
             markers=Printer.merge_marker_data(data),
             state=State.from_dict(data),
+            status=Status.from_dict(data),
+            input_trays=Printer.parse_trays(data, "printer-input-tray"),
+            output_trays=Printer.parse_trays(data, "printer-output-tray"),
             uris=Printer.merge_uri_data(data),
             booted_at=(_utcnow() - timedelta(seconds=info.uptime)),
         )
+
+    @staticmethod
+    def parse_trays(data: dict[str, Any], attribute: str) -> list[Tray]:
+        """Return the trays reported under the given attribute."""
+        return [
+            Tray.from_string(str(value))
+            for value in _as_list(data.get(attribute))
+            if value not in (None, "")
+        ]
 
     @staticmethod
     def merge_marker_data(  # noqa: PLR0912, C901

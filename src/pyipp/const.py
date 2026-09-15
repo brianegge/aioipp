@@ -46,6 +46,16 @@ DEFAULT_PRINTER_ATTRIBUTES = [
     "printer-impressions-completed-col",
     "printer-pages-completed",
     "printer-media-sheets-completed",
+    "printer-uuid",
+    "printer-icons",
+    "printer-is-accepting-jobs",
+    "queued-job-count",
+    "printer-alert-description",
+    "printer-input-tray",
+    "printer-output-tray",
+    "media-ready",
+    "pages-per-minute",
+    "pages-per-minute-color",
 ]
 
 DEFAULT_PORT = 631
