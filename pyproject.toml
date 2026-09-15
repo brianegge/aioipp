@@ -54,6 +54,11 @@ aioipp = "pyipp.__main__:main"
 "Bug Tracker" = "https://github.com/brianegge/aioipp/issues"
 Changelog = "https://github.com/brianegge/aioipp/releases"
 
+[tool.codespell]
+# BALE is an IPP "finishings" value; SER is an IEEE 1284 device ID key.
+ignore-words-list = "bale,ser"
+skip = "poetry.lock,package-lock.json"
+
 [tool.coverage.report]
 show_missing = true
 fail_under = 53
