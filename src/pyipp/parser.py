@@ -279,6 +279,9 @@ def parse(  # noqa: PLR0912, PLR0915
 
     attribute_key = ""
     previous_attribute_name = ""
+    # A single rangeOfInteger value is itself a list, so track whether the
+    # current attribute holds several values rather than checking for a list.
+    previous_attribute_multivalued = False
     tmp_data: dict[str, Any] = {}
 
     while struct.unpack_from("b", raw_data, offset)[0] != IppTag.END.value:
@@ -328,10 +331,13 @@ def parse(  # noqa: PLR0912, PLR0915
             if attribute["name"]:
                 tmp_data[attribute["name"]] = attribute["value"]
                 previous_attribute_name = attribute["name"]
+                previous_attribute_multivalued = False
             elif attribute["tag"] == IppTag.MEMBER_NAME.value:
                 # memberAttrName belongs inside a collection, but some printers
                 # (Kyocera FS-4100DN) use it at the top level to name the
-                # values that follow it, with an empty name field.
+                # values that follow it, with an empty name field. Like a
+                # repeated named attribute, a repeated name replaces the
+                # earlier value.
                 previous_attribute_name = attribute["value"]
                 tmp_data.pop(previous_attribute_name, None)
             elif previous_attribute_name:
@@ -340,11 +346,13 @@ def parse(  # noqa: PLR0912, PLR0915
                 # else convert it to an array
                 if previous_attribute_name not in tmp_data:
                     tmp_data[previous_attribute_name] = attribute["value"]
-                elif isinstance(tmp_data[previous_attribute_name], list):
+                    previous_attribute_multivalued = False
+                elif previous_attribute_multivalued:
                     tmp_data[previous_attribute_name].append(attribute["value"])
                 else:
                     tmp_value = tmp_data[previous_attribute_name]
                     tmp_data[previous_attribute_name] = [tmp_value, attribute["value"]]
+                    previous_attribute_multivalued = True
 
             offset = new_offset
 
