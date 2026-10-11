@@ -228,6 +228,25 @@ def test_parse_kyocera_ecosys_m2540dn(snapshot: SnapshotAssertion) -> None:
     assert result == snapshot
 
 
+def test_parse_kyocera_fs4100dn(snapshot: SnapshotAssertion) -> None:
+    """Test the parse method against response from Kyocera FS-4100DN.
+
+    This printer names some attributes with a memberAttrName value outside of
+    any collection, instead of in the attribute's name field.
+    """
+    response = load_fixture_binary("get-printer-attributes-kyocera-fs4100dn.bin")
+
+    result = parser.parse(response)
+    assert result == snapshot
+
+    printer = result["printers"][0]
+    assert printer["printer-state"] == enums.IppPrinterState.IDLE
+    assert printer["printer-state-reasons"] == "none"
+    assert printer["printer-more-info"] == "http://xxxxxxxxxxxxx"
+    assert printer["queued-job-count"] == 0
+    assert printer["marker-levels"] == [78, 100]
+
+
 def test_parse_empty_attribute_group(snapshot: SnapshotAssertion) -> None:
     """Test the parse method against a sample response with an empty attribute group."""
     response = load_fixture_binary(

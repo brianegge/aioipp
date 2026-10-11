@@ -328,10 +328,19 @@ def parse(  # noqa: PLR0912, PLR0915
             if attribute["name"]:
                 tmp_data[attribute["name"]] = attribute["value"]
                 previous_attribute_name = attribute["name"]
+            elif attribute["tag"] == IppTag.MEMBER_NAME.value:
+                # memberAttrName belongs inside a collection, but some printers
+                # (Kyocera FS-4100DN) use it at the top level to name the
+                # values that follow it, with an empty name field.
+                previous_attribute_name = attribute["value"]
+                tmp_data.pop(previous_attribute_name, None)
             elif previous_attribute_name:
+                # add the first value after a top-level memberAttrName
                 # check if attribute is already an array
                 # else convert it to an array
-                if isinstance(tmp_data[previous_attribute_name], list):
+                if previous_attribute_name not in tmp_data:
+                    tmp_data[previous_attribute_name] = attribute["value"]
+                elif isinstance(tmp_data[previous_attribute_name], list):
                     tmp_data[previous_attribute_name].append(attribute["value"])
                 else:
                     tmp_value = tmp_data[previous_attribute_name]

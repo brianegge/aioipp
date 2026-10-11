@@ -833,6 +833,30 @@ def test_real_kyocera_taskalfa() -> None:
     assert cassette.level == 350
 
 
+def test_real_kyocera_fs4100dn() -> None:
+    """Test the models against a real Kyocera FS-4100DN.
+
+    home-assistant/core#185734: printer-state used to parse as a list and
+    raise TypeError, so the printer could not be added.
+    """
+    parsed = parser.parse(
+        load_fixture_binary("get-printer-attributes-kyocera-fs4100dn.bin"),
+    )
+    printer = models.Printer.from_dict(parsed["printers"][0])
+
+    assert printer.info.manufacturer == "Kyocera"
+    assert printer.info.model == "FS-4100DN"
+    assert printer.info.pages_per_minute == 45
+    assert printer.state.printer_state == "idle"
+    assert printer.state.reasons is None
+    assert printer.status.queued_jobs == 0
+    assert printer.status.media_ready == ["iso_a4_210x297mm", "iso_a4_210x297mm"]
+    assert [(m.name, m.marker_type, m.level) for m in printer.markers] == [
+        ("Black TK-3110", "toner", 78),
+        ("Waste Toner Box", "wasteToner", 100),
+    ]
+
+
 def test_real_epson_et2980() -> None:
     """Test the new models against a real Epson ET-2980."""
     parsed = parser.parse(
