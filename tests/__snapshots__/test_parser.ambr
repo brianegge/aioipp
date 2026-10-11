@@ -1005,3 +1005,90 @@
     ),
   })
 # ---
+# name: test_parse_kyocera_fs4100dn
+  dict({
+    'data': b'',
+    'jobs': list([
+    ]),
+    'operation-attributes': dict({
+      'attributes-charset': 'utf-8',
+      'attributes-natural-language': 'en-us',
+    }),
+    'printers': list([
+      dict({
+        'marker-colors': list([
+          '#000000',
+          'none',
+        ]),
+        'marker-high-levels': list([
+          100,
+          100,
+        ]),
+        'marker-levels': list([
+          78,
+          100,
+        ]),
+        'marker-low-levels': list([
+          5,
+          5,
+        ]),
+        'marker-names': list([
+          'Black TK-3110',
+          'Waste Toner Box',
+        ]),
+        'marker-types': list([
+          'toner',
+          'wasteToner',
+        ]),
+        'media-ready': list([
+          'iso_a4_210x297mm',
+          'iso_a4_210x297mm',
+        ]),
+        'pages-per-minute': 45,
+        'printer-device-id': 'ID:FS-4100DN;MFG:Kyocera;CMD:PCLXL,PostScript Emulation,PCL5E,PJL;MDL:FS-4100DN;CLS:PRINTER;DES:Kyocera FS-4100DN;URF:CP255,DM4,FN3,IFU19,IS19-20-21,MT1-2-3-4-5,OB10-8,OFU8,PQ4,RS600-1200,V1.2,W8;',
+        'printer-icons': list([
+          'http://xxxxxxxxxxxxx/printer-icon/machine_128.png',
+          'http://xxxxxxxxxxxxx/printer-icon/machine_512.png',
+        ]),
+        'printer-info': 'xxxxxxxxxxxxxxxxx',
+        'printer-is-accepting-jobs': True,
+        'printer-location': '',
+        'printer-make-and-model': 'FS-4100DN',
+        'printer-more-info': 'http://xxxxxxxxxxxxx',
+        'printer-name': 'xxxxxxxx',
+        'printer-state': <IppPrinterState.IDLE: 3>,
+        'printer-state-reasons': 'none',
+        'printer-up-time': 1890193,
+        'printer-uri-supported': 'ipp://xxxxxxxxxxxxx:631/ipp/print',
+        'printer-uuid': 'urn:uuid:00000000-0000-0000-0000-000000000000',
+        'queued-job-count': 0,
+      }),
+    ]),
+    'request-id': 69158,
+    'status-code': 1,
+    'unsupported-attributes': list([
+      dict({
+        'requested-attributes': list([
+          'printer-type',
+          'printer-state-message',
+          'printer-supply',
+          'device-uri',
+          'printer-is-shared',
+          'printer-firmware-string-version',
+          'printer-impressions-completed',
+          'printer-impressions-completed-col',
+          'printer-pages-completed',
+          'printer-media-sheets-completed',
+          'printer-alert-description',
+          'printer-input-tray',
+          'printer-output-tray',
+          'pages-per-minute-color',
+        ]),
+      }),
+    ]),
+    'version': tuple(
+      1,
+      1,
+    ),
+  })
+# ---

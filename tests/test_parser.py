@@ -1,5 +1,7 @@
 """Tests for Parser."""
 
+import struct
+
 import pytest
 from syrupy.assertion import SnapshotAssertion
 
@@ -228,6 +230,25 @@ def test_parse_kyocera_ecosys_m2540dn(snapshot: SnapshotAssertion) -> None:
     assert result == snapshot
 
 
+def test_parse_kyocera_fs4100dn(snapshot: SnapshotAssertion) -> None:
+    """Test the parse method against response from Kyocera FS-4100DN.
+
+    This printer names some attributes with a memberAttrName value outside of
+    any collection, instead of in the attribute's name field.
+    """
+    response = load_fixture_binary("get-printer-attributes-kyocera-fs4100dn.bin")
+
+    result = parser.parse(response)
+    assert result == snapshot
+
+    printer = result["printers"][0]
+    assert printer["printer-state"] == enums.IppPrinterState.IDLE
+    assert printer["printer-state-reasons"] == "none"
+    assert printer["printer-more-info"] == "http://xxxxxxxxxxxxx"
+    assert printer["queued-job-count"] == 0
+    assert printer["marker-levels"] == [78, 100]
+
+
 def test_parse_empty_attribute_group(snapshot: SnapshotAssertion) -> None:
     """Test the parse method against a sample response with an empty attribute group."""
     response = load_fixture_binary(
@@ -254,3 +275,63 @@ def test_parse_attribute_known_enum_value() -> None:
     result, _ = parser.parse_attribute(data, 0)
 
     assert result["value"] is enums.IppFinishing.JOG_OFFSET
+
+
+def _printer_group(*attributes: tuple[int, str, bytes]) -> bytes:
+    """Encode a response with one printer group holding the given attributes."""
+    body = b"".join(
+        struct.pack(">bh", tag, len(name))
+        + name.encode()
+        + struct.pack(">h", len(value))
+        + value
+        for tag, name, value in attributes
+    )
+    return (
+        struct.pack(">bbhi", 2, 0, 0, 1)
+        + bytes([enums.IppTag.OPERATION])
+        + struct.pack(">bh", enums.IppTag.CHARSET, 18)
+        + b"attributes-charset"
+        + struct.pack(">h", 5)
+        + b"utf-8"
+        + bytes([enums.IppTag.PRINTER])
+        + body
+        + bytes([enums.IppTag.END])
+    )
+
+
+def _range(low: int, high: int) -> bytes:
+    return struct.pack(">ii", low, high)
+
+
+def test_parse_multiple_range_values() -> None:
+    """Each rangeOfInteger value stays a separate [low, high] pair."""
+    response = _printer_group(
+        (enums.IppTag.RANGE, "copies-supported", _range(1, 5)),
+        (enums.IppTag.RANGE, "", _range(10, 20)),
+        (enums.IppTag.RANGE, "", _range(30, 40)),
+        (enums.IppTag.MEMBER_NAME, "", b"number-up-supported"),
+        (enums.IppTag.RANGE, "", _range(1, 2)),
+        (enums.IppTag.RANGE, "", _range(4, 16)),
+    )
+
+    printer = parser.parse(response)["printers"][0]
+
+    assert printer["copies-supported"] == [[1, 5], [10, 20], [30, 40]]
+    assert printer["number-up-supported"] == [[1, 2], [4, 16]]
+
+
+def test_parse_top_level_member_name_replaces_value() -> None:
+    """A repeated name replaces the earlier value, as for named attributes."""
+    response = _printer_group(
+        (enums.IppTag.INTEGER, "marker-levels", struct.pack(">i", 1)),
+        (enums.IppTag.INTEGER, "", struct.pack(">i", 2)),
+        (enums.IppTag.MEMBER_NAME, "", b"marker-levels"),
+        (enums.IppTag.INTEGER, "", struct.pack(">i", 78)),
+        (enums.IppTag.INTEGER, "", struct.pack(">i", 100)),
+        (enums.IppTag.KEYWORD, "printer-state-reasons", b"none"),
+    )
+
+    printer = parser.parse(response)["printers"][0]
+
+    assert printer["marker-levels"] == [78, 100]
+    assert printer["printer-state-reasons"] == "none"

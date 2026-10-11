@@ -98,8 +98,13 @@ def _identifiers(parsed: dict[str, Any]) -> set[str]:
     # A printer-info of "EPSON XP-6000 Series" is also in printer-make-and-model,
     # which is kept on purpose.
     found.update(value for value in redacted if not any(value in k for k in kept))
-    # Short values such as "doc" also occur inside unrelated keywords.
-    return {value for value in found if len(value) >= 6}
+    # Short values such as "doc" also occur inside unrelated keywords, and
+    # fixtures captured with the scrubbing CLI are already masked.
+    return {
+        value
+        for value in found
+        if len(value) >= 6 and not re.fullmatch(r"[0x\-]+", value)
+    }
 
 
 @pytest.mark.parametrize("fixture", FIXTURES)
