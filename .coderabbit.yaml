@@ -2,5 +2,9 @@
 # yaml-language-server: $schema=https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
 
 reviews:
+  # Review on demand: comment `@coderabbitai review` on the PR. This file
+  # overrides the organization settings, which also have auto review off.
+  auto_review:
+    enabled: false
   # Don't post a "review in progress" or "review skipped" notice on PRs.
   review_status: false
