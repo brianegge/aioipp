@@ -58,7 +58,8 @@ def _message(*attributes: bytes, data: bytes = b"") -> bytes:
 
 def _printer(raw: bytes) -> dict[str, Any]:
     """Parse a message and return its printer attributes."""
-    return parser.parse(raw)["printers"][0]
+    printer: dict[str, Any] = parser.parse(raw)["printers"][0]
+    return printer
 
 
 def _leaves(obj: Any, path: str = "") -> dict[str, Any]:
