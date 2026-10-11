@@ -15,6 +15,7 @@ from pyipp.__main__ import (
     main,
     run,
 )
+from pyipp.scrub import scrub
 
 from . import (
     DEFAULT_PRINTER_HOST,
@@ -55,11 +56,33 @@ async def test_cli_success(
 
     assert await run([DEFAULT_PRINTER_URI, "--output", str(output)]) == EXIT_OK
 
-    assert output.read_bytes() == body
+    assert output.read_bytes() == scrub(body)
     out = capsys.readouterr().out
     assert "printer-make-and-model: 'EPSON XP-6000 Series'" in out
     assert "Parsed printer:" in out
     assert "Everything parsed" in out
+    assert "were masked" in out
+    for identifier in ("583434593035343012", "f8d027761251", "192.168.1.92"):
+        assert identifier not in out
+        assert identifier.encode() not in output.read_bytes()
+
+
+async def test_cli_no_scrub(
+    aresponses: ResponsesMockServer,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test --no-scrub saves and prints the response as received."""
+    body = load_fixture_binary("get-printer-attributes-epsonxp6000.bin")
+    _add_response(aresponses, body)
+    output = tmp_path / "capture.bin"
+
+    assert await run([DEFAULT_PRINTER_URI, "-o", str(output), "--no-scrub"]) == EXIT_OK
+
+    assert output.read_bytes() == body
+    out = capsys.readouterr().out
+    assert "SN:583434593035343012" in out
+    assert "Do not post them publicly" in out
 
 
 async def test_cli_parse_failure(
@@ -74,11 +97,12 @@ async def test_cli_parse_failure(
 
     assert await run([DEFAULT_PRINTER_URI, "-o", str(output)]) == EXIT_PARSE_FAILED
 
-    assert output.read_bytes() == body
+    assert output.read_bytes() == scrub(body)
     captured = capsys.readouterr()
     assert "failed to parse" in captured.err
     assert "Traceback" in captured.err
     assert "attach" in captured.err
+    assert "were masked" in captured.err
 
 
 async def test_cli_connection_failure(
