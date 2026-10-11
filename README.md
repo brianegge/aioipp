@@ -44,7 +44,7 @@ useful thing you can provide is a raw capture of what the printer sends. The
 package ships a small diagnostics command for exactly that:
 
 ```bash
-pipx run aioipp ipp://192.168.1.10:631/ipp/print
+uvx --python 3.14 aioipp ipp://192.168.1.10:631/ipp/print
 ```
 
 or, in an environment where the package is already installed:
@@ -65,12 +65,15 @@ with:
 - the full output of the command
 - the `ipp-<host>.bin` file (zip it if GitHub refuses the extension)
 
-The capture may contain the printer's serial number and UUID. Remove them if
-you consider them private. Captured files become regression tests in
-`tests/fixtures`, so they are the fastest route to a fix.
+Serial numbers, UUIDs, hosts and names are masked in both the capture and the
+output, so they are safe to post. Masking keeps every value the same length, so
+a masked capture still reproduces the problem. Pass `--no-scrub` to keep the
+original values, for example when debugging locally. Captured files become
+regression tests in `tests/fixtures`, so they are the fastest route to a fix.
 
 If you cannot install Python packages, the `ipptool` command that ships with
-CUPS on Linux and macOS is a good substitute:
+CUPS on Linux and macOS is a good substitute. Its output is not masked, so
+remove the serial number, UUIDs and hosts before posting it:
 
 ```bash
 ipptool -tv ipp://192.168.1.10:631/ipp/print get-printer-attributes.test

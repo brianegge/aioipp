@@ -2,7 +2,8 @@
 
 Run ``python -m pyipp ipp://printer.local:631/ipp/print`` to query a printer,
 print what the library understands about it and save the raw IPP response to
-a file that can be attached to a bug report.
+a file that can be attached to a bug report. Serial numbers, UUIDs, hosts and
+names are masked unless ``--no-scrub`` is given.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from .exceptions import IPPError
 from .ipp import IPP, VERSION
 from .models import Printer
 from .parser import parse
+from .scrub import scrub
 
 EXIT_OK = 0
 EXIT_PARSE_FAILED = 1
@@ -72,6 +74,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="verify the printer's TLS certificate (ipps:// only)",
     )
     parser.add_argument(
+        "--no-scrub",
+        dest="scrub",
+        action="store_false",
+        help=(
+            "keep serial numbers, UUIDs, hosts and names in the capture and"
+            " output instead of masking them"
+        ),
+    )
+    parser.add_argument(
         "--timeout",
         type=int,
         default=8,
@@ -88,6 +99,20 @@ def _default_output(uri: str) -> Path:
 def _print_attributes(attributes: dict[str, Any]) -> None:
     for key in sorted(attributes):
         print(f"  {key}: {attributes[key]!r}")
+
+
+def _privacy_note(scrubbed: bool) -> str:  # noqa: FBT001
+    if scrubbed:
+        return (
+            "Note: serial numbers, UUIDs, hosts and names were masked in the"
+            " capture and the output above. Masking is best effort, so check"
+            " vendor-specific values before posting."
+        )
+    return (
+        "Note: --no-scrub was given, so the capture and the output above"
+        " include the printer's serial number, UUID, hosts and names. Do not"
+        " post them publicly."
+    )
 
 
 async def _run(args: argparse.Namespace) -> int:
@@ -122,6 +147,9 @@ async def _run(args: argparse.Namespace) -> int:
             )
             return EXIT_CONNECT_FAILED
 
+    if args.scrub:
+        raw = scrub(raw)
+
     await asyncio.to_thread(output.write_bytes, raw)
     print(f"Saved raw response ({len(raw)} bytes) to {output}")
 
@@ -146,20 +174,14 @@ async def _run(args: argparse.Namespace) -> int:
             " together with the output above.",
             file=sys.stderr,
         )
-        print(
-            "Note: the capture may contain the printer's serial number and"
-            " UUID. Remove them from the issue if you consider them private.",
-            file=sys.stderr,
-        )
+        print(_privacy_note(args.scrub), file=sys.stderr)
         return EXIT_PARSE_FAILED
 
     print(
         f"\nEverything parsed. If something still looks wrong, attach {output}"
         f" to an issue at {ISSUES_URL}.",
     )
-    print(
-        "Note: the capture may contain the printer's serial number and UUID.",
-    )
+    print(_privacy_note(args.scrub))
     return EXIT_OK
 
 
