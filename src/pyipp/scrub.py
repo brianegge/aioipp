@@ -2,13 +2,24 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 import re
 import struct
+import textwrap
+import zlib
 
 from .enums import IppTag
 
 _LOGGER = logging.getLogger(__name__)
+
+CAPTURE_BEGIN = "-----BEGIN SCRUBBED IPP RESPONSE-----"
+CAPTURE_END = "-----END SCRUBBED IPP RESPONSE-----"
+_CAPTURE = re.compile(
+    re.escape(CAPTURE_BEGIN) + r"(.*?)" + re.escape(CAPTURE_END),
+    re.DOTALL,
+)
+_NOT_BASE64 = re.compile(r"[^A-Za-z0-9+/=]")
 
 # Attributes whose whole value is free text set by an administrator or user,
 # or a name that printers commonly derive from their MAC address or serial
@@ -182,3 +193,23 @@ def scrub(data: bytes) -> bytes:
         out[start:] = _scrub_patterns(bytes(out[start:]))
 
     return bytes(out)
+
+
+def encode_capture(data: bytes) -> str:
+    """Return data as a compressed, base64-encoded block for logs and issues."""
+    encoded = base64.b64encode(zlib.compress(data, 9)).decode("ascii")
+    return "\n".join([CAPTURE_BEGIN, *textwrap.wrap(encoded, 76), CAPTURE_END])
+
+
+def decode_capture(text: str) -> bytes:
+    """Return the data from the first block written by encode_capture in text.
+
+    The text can be a whole log or issue comment. Characters that cannot be
+    part of base64, such as indentation or quoting added when pasting, are
+    ignored.
+    """
+    if not (match := _CAPTURE.search(text)):
+        msg = f"no {CAPTURE_BEGIN} block found"
+        raise ValueError(msg)
+
+    return zlib.decompress(base64.b64decode(_NOT_BASE64.sub("", match.group(1))))

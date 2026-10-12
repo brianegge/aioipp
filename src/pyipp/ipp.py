@@ -30,6 +30,7 @@ from .exceptions import (
 )
 from .models import Printer
 from .parser import parse as parse_response
+from .scrub import encode_capture, scrub
 from .serializer import encode_dict
 
 if TYPE_CHECKING:
@@ -186,13 +187,22 @@ class IPP:
         message: dict[str, Any],
     ) -> dict[str, Any]:
         """Send a request message to the server."""
+        parsed, _ = await self._execute(operation, message)
+        return parsed
+
+    async def _execute(
+        self,
+        operation: IppOperation,
+        message: dict[str, Any],
+    ) -> tuple[dict[str, Any], bytes]:
+        """Send a request message and return the parsed and raw response."""
         message = self._message(operation, message)
         response = await self._request(data=message)
 
         try:
             parsed = parse_response(response)
         except (structerror, Exception) as exc:  # disable=broad-except
-            raise IPPParseError from exc
+            raise _parse_error(exc, response) from exc
 
         if parsed["status-code"] == IppStatus.ERROR_VERSION_NOT_SUPPORTED:
             raise IPPVersionNotSupportedError("IPP version not supported by server")
@@ -203,7 +213,7 @@ class IPP:
                 {"status-code": parsed["status-code"]},
             )
 
-        return parsed
+        return parsed, response
 
     async def raw(self, operation: IppOperation, message: dict[str, Any]) -> bytes:
         """Send a request message to the server and return raw response."""
@@ -218,7 +228,7 @@ class IPP:
 
     async def printer(self) -> Printer:
         """Get printer information from server."""
-        response_data = await self.execute(
+        response_data, response = await self._execute(
             IppOperation.GET_PRINTER_ATTRIBUTES,
             {
                 "operation-attributes-tag": {
@@ -235,7 +245,7 @@ class IPP:
             else:
                 self._printer.update_from_dict(parsed)
         except Exception as exc:
-            raise IPPParseError from exc
+            raise _parse_error(exc, response) from exc
 
         return self._printer
 
@@ -246,3 +256,21 @@ class IPP:
     async def __aexit__(self, *_exec_info: object) -> None:
         """Async exit."""
         await self.close()
+
+
+def _parse_error(exc: Exception, response: bytes) -> IPPParseError:
+    """Return a parse error that carries the scrubbed printer response.
+
+    The message is the short cause, suitable for showing to a user. The
+    scrubbed response is attached as a note, so it appears in a logged
+    traceback without making the message itself long.
+    """
+    scrubbed = scrub(response)
+    error = IPPParseError(f"{type(exc).__name__}: {exc}", scrubbed_response=scrubbed)
+    error.add_note(
+        f"aioipp {VERSION} could not parse this printer's response. To report"
+        " it, include the block below in an issue at"
+        " https://github.com/brianegge/aioipp/issues. Serial numbers, UUIDs,"
+        " hosts and names have been masked.\n" + encode_capture(scrubbed),
+    )
+    return error
