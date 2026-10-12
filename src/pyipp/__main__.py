@@ -23,7 +23,7 @@ from .exceptions import IPPError
 from .ipp import IPP, VERSION
 from .models import Printer
 from .parser import parse
-from .scrub import scrub
+from .scrub import decode_capture, scrub
 
 EXIT_OK = 0
 EXIT_PARSE_FAILED = 1
@@ -51,7 +51,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "uri",
+        nargs="?",
         help="printer URI, e.g. ipp://192.168.1.10:631/ipp/print",
+    )
+    parser.add_argument(
+        "--from-log",
+        metavar="FILE",
+        help=(
+            "instead of querying a printer, read the scrubbed response block"
+            " from a log or issue comment saved in FILE ('-' for stdin)"
+        ),
     )
     parser.add_argument(
         "-o",
@@ -116,9 +125,21 @@ def _privacy_note(scrubbed: bool) -> str:  # noqa: FBT001
 
 
 async def _run(args: argparse.Namespace) -> int:
-    output: Path = args.output or _default_output(args.uri)
-
     print(f"aioipp {VERSION}")
+
+    if args.from_log is not None:
+        try:
+            raw = decode_capture(await asyncio.to_thread(_read_log, args.from_log))
+        except (OSError, ValueError) as exc:
+            print(
+                f"\nCould not read a response from {args.from_log}: {exc}",
+                file=sys.stderr,
+            )
+            return EXIT_PARSE_FAILED
+        print(f"Read {len(raw)} bytes from {args.from_log}")
+        return await _report(args, raw, args.output or Path("ipp-from-log.bin"))
+
+    output: Path = args.output or _default_output(args.uri)
     print(f"Querying {args.uri} (IPP {'.'.join(map(str, args.ipp_version))})")
 
     async with IPP(
@@ -147,6 +168,10 @@ async def _run(args: argparse.Namespace) -> int:
             )
             return EXIT_CONNECT_FAILED
 
+    return await _report(args, raw, output)
+
+
+async def _report(args: argparse.Namespace, raw: bytes, output: Path) -> int:
     if args.scrub:
         raw = scrub(raw)
 
@@ -185,9 +210,19 @@ async def _run(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _read_log(source: str) -> str:
+    if source == "-":
+        return sys.stdin.read()
+    return Path(source).read_text(encoding="utf-8", errors="replace")
+
+
 async def run(argv: list[str] | None = None) -> int:
     """Run the diagnostics command and return an exit code."""
-    return await _run(_build_parser().parse_args(argv))
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    if (args.uri is None) == (args.from_log is None):
+        parser.error("give either a printer URI or --from-log FILE")
+    return await _run(args)
 
 
 def main(argv: list[str] | None = None) -> int:

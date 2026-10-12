@@ -71,6 +71,16 @@ a masked capture still reproduces the problem. Pass `--no-scrub` to keep the
 original values, for example when debugging locally. Captured files become
 regression tests in `tests/fixtures`, so they are the fastest route to a fix.
 
+When aioipp fails to parse a response inside another application, such as
+Home Assistant, the logged error ends with a
+`-----BEGIN SCRUBBED IPP RESPONSE-----` block. It holds the same masked capture,
+compressed and base64 encoded, so pasting the full error into an issue is
+enough. Maintainers can turn it back into a capture file with:
+
+```bash
+python -m pyipp --from-log home-assistant.log -o ipp-capture.bin
+```
+
 If you cannot install Python packages, the `ipptool` command that ships with
 CUPS on Linux and macOS is a good substitute. Its output is not masked, so
 remove the serial number, UUIDs and hosts before posting it:

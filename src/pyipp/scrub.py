@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import logging
 import re
 import struct
+import textwrap
+import zlib
 
 from .enums import IppTag
 
 _LOGGER = logging.getLogger(__name__)
+
+CAPTURE_BEGIN = "-----BEGIN SCRUBBED IPP RESPONSE-----"
+CAPTURE_END = "-----END SCRUBBED IPP RESPONSE-----"
+_CAPTURE = re.compile(
+    re.escape(CAPTURE_BEGIN) + r"(.*?)" + re.escape(CAPTURE_END),
+    re.DOTALL,
+)
+_BASE64_LINE = re.compile(r"[A-Za-z0-9+/=]+")
 
 # Attributes whose whole value is free text set by an administrator or user,
 # or a name that printers commonly derive from their MAC address or serial
@@ -116,8 +128,9 @@ def scrub(data: bytes) -> bytes:
     the result parses exactly as the original did, including whatever made
     the original fail to parse.
 
-    Only the attribute groups are scrubbed. Document data after the
-    end-of-attributes tag is returned as is.
+    Anything after the end-of-attributes tag, such as document data or
+    attributes from a printer that sends the tag too early, is masked by
+    pattern only, since its structure is unknown.
 
     Removal is best effort: vendor-specific attributes can carry anything.
     """
@@ -175,6 +188,8 @@ def scrub(data: bytes) -> bytes:
                     )
 
             offset = end
+
+        out[offset + 1 :] = _scrub_patterns(bytes(out[offset + 1 :]))
     except IndexError, struct.error:
         # The message is malformed or truncated. Fall back to masking what can
         # be recognised by shape from here to the end.
@@ -182,3 +197,34 @@ def scrub(data: bytes) -> bytes:
         out[start:] = _scrub_patterns(bytes(out[start:]))
 
     return bytes(out)
+
+
+def encode_capture(data: bytes) -> str:
+    """Return data as a compressed, base64-encoded block for logs and issues."""
+    encoded = base64.b64encode(zlib.compress(data, 9)).decode("ascii")
+    return "\n".join([CAPTURE_BEGIN, *textwrap.wrap(encoded, 76), CAPTURE_END])
+
+
+def decode_capture(text: str) -> bytes:
+    """Return the data from the first block written by encode_capture in text.
+
+    The text can be a whole log or issue comment. Encoded lines contain no
+    spaces, so only the last word of each line is used: indentation, quoting
+    and per-line log prefixes such as timestamps are ignored.
+
+    Raises ValueError if there is no block or its data is damaged.
+    """
+    if not (match := _CAPTURE.search(text)):
+        msg = f"no {CAPTURE_BEGIN} block found"
+        raise ValueError(msg)
+
+    encoded = "".join(
+        words[-1]
+        for line in match.group(1).splitlines()
+        if (words := line.split()) and _BASE64_LINE.fullmatch(words[-1])
+    )
+    try:
+        return zlib.decompress(base64.b64decode(encoded, validate=True))
+    except (binascii.Error, zlib.error) as exc:
+        msg = f"damaged {CAPTURE_BEGIN} block: {exc}"
+        raise ValueError(msg) from exc
