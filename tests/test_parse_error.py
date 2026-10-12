@@ -48,7 +48,9 @@ UNSUPPORTED_PRINTER = (
     + _attr(IppTag.CHARSET, "attributes-charset", b"utf-8")
     + bytes([IppTag.PRINTER])
     + _attr(
-        IppTag.TEXT, "printer-device-id", b"MFG:HP;MDL:LaserJet;SN:" + SERIAL + b";"
+        IppTag.TEXT,
+        "printer-device-id",
+        b"MFG:HP;MDL:LaserJet;SN:" + SERIAL + b";",
     )
     + _attr(IppTag.ENUM, "printer-state", struct.pack(">i", 3))
     + _attr(IppTag.ENUM, "", struct.pack(">i", 3))
