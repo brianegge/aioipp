@@ -240,12 +240,19 @@ def test_scrub_collection_members() -> None:
     assert scrubbed["printer-state-reasons"] == "none"
 
 
-def test_scrub_keeps_document_data() -> None:
-    """Data after the end-of-attributes tag is not touched."""
-    document = b"SN:ABCDEF;http://printer.lan/"
-    raw = _message(_attr(IppTag.NAME, "printer-name", b"office"), data=document)
+def test_scrub_masks_data_after_end_tag() -> None:
+    """Data after the end-of-attributes tag is masked by pattern."""
+    trailing = (
+        b"MFG:HP;SN:ABCDEF;http://printer.lan/ 3e5a7237-ad6c-4ef0-be85-d0cc5d4f7721"
+    )
+    raw = _message(_attr(IppTag.NAME, "printer-name", b"office"), data=trailing)
 
-    assert scrub(raw).endswith(document)
+    scrubbed = scrub(raw)
+
+    assert len(scrubbed) == len(raw)
+    assert scrubbed.endswith(
+        b"MFG:HP;SN:xxxxxx;http://xxxxxxxxxxx/ 00000000-0000-0000-0000-000000000000",
+    )
 
 
 def test_scrub_keeps_parse_failure() -> None:

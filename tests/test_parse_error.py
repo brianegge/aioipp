@@ -145,6 +145,33 @@ def test_capture_round_trip_through_pasting() -> None:
     assert decode_capture(pasted) == data
 
 
+def test_capture_with_log_prefixes() -> None:
+    """Timestamps or other per-line log prefixes are ignored."""
+    data = load_fixture_binary("get-printer-attributes-kyocera-fs4100dn.bin")
+    pasted = "\n".join(
+        f"Oct 12 07:00:00 ha homeassistant[42]: {line}"
+        for line in encode_capture(data).split("\n")
+    )
+
+    assert decode_capture(pasted) == data
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "eNpj!!!notbase64",  # last word is not base64, so nothing is decoded
+        "eNpjYgADRkZ3BqHEkp",  # bad padding
+        "AAAAAAAA",  # valid base64, not zlib data
+    ],
+)
+def test_capture_damaged(body: str) -> None:
+    """A damaged block raises ValueError, not a decoder error."""
+    text = f"{CAPTURE_BEGIN}\n{body}\n-----END SCRUBBED IPP RESPONSE-----"
+
+    with pytest.raises(ValueError, match="damaged"):
+        decode_capture(text)
+
+
 def test_capture_missing() -> None:
     """Text without a block is rejected."""
     with pytest.raises(ValueError, match="no -----BEGIN"):
@@ -180,6 +207,21 @@ async def test_cli_from_log_stdin(
 
     assert await run(["--from-log", "-"]) == EXIT_PARSE_FAILED
     assert (tmp_path / "ipp-from-log.bin").read_bytes() == scrub(UNSUPPORTED_PRINTER)
+
+
+async def test_cli_from_log_damaged(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A damaged block is reported, not a traceback."""
+    log = tmp_path / "home-assistant.log"
+    log.write_text(
+        f"{CAPTURE_BEGIN}\nAAAAAAAA\n-----END SCRUBBED IPP RESPONSE-----\n",
+        encoding="utf-8",
+    )
+
+    assert await run(["--from-log", str(log)]) == EXIT_PARSE_FAILED
+    assert "damaged" in capsys.readouterr().err
 
 
 async def test_cli_from_log_without_block(
