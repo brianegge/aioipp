@@ -75,3 +75,8 @@ def test_encode_dict() -> None:
     assert result == load_fixture_binary(
         "serializer/get-printer-attributes-request-000.bin",
     )
+
+
+def test_default_natural_language_is_lowercase() -> None:
+    """Test the default language tag is lowercase, as CUPS rejects uppercase."""
+    assert DEFAULT_CHARSET_LANGUAGE.islower()
