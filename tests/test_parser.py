@@ -6,7 +6,7 @@ import pytest
 from syrupy.assertion import SnapshotAssertion
 
 from pyipp import IPPParseError, enums, parser
-from pyipp.const import DEFAULT_CHARSET, DEFAULT_CHARSET_LANGUAGE, DEFAULT_PROTO_VERSION
+from pyipp.const import DEFAULT_CHARSET, DEFAULT_PROTO_VERSION
 from pyipp.enums import IppOperation
 
 from . import load_fixture_binary
@@ -26,7 +26,7 @@ def test_parse() -> None:
         "jobs": [],
         "operation-attributes": {
             "attributes-charset": DEFAULT_CHARSET,
-            "attributes-natural-language": DEFAULT_CHARSET_LANGUAGE,
+            "attributes-natural-language": "en-US",
             "printer-uri": "ipp://printer.example.com:361/ipp/print",
             "requesting-user-name": "PythonIPP",
         },
