@@ -137,8 +137,9 @@ class IPP:
         upgrade = response.headers.get("Upgrade", "")
         # Some printers (e.g. Fuji Xerox DocuPrint) answer plain IPP with
         # 406 Not Acceptable plus an Upgrade: TLS header instead of 426.
+        # Over TLS such a header cannot be asking for TLS, so ignore it there.
         if response.status == 426 or (
-            response.status // 100 == 4 and "TLS" in upgrade.upper()
+            not self.tls and response.status // 100 == 4 and "TLS" in upgrade.upper()
         ):
             response.close()
             raise IPPConnectionUpgradeRequired(

@@ -280,6 +280,41 @@ async def test_http_error406_without_upgrade(
 
 
 @pytest.mark.asyncio
+async def test_http_error401_upgrade_tls_over_tls(
+    aresponses: ResponsesMockServer,
+) -> None:
+    """Test a 4xx with an Upgrade: TLS header over TLS stays a response error."""
+    aresponses.add(
+        MATCH_DEFAULT_HOST,
+        DEFAULT_PRINTER_PATH,
+        "POST",
+        aresponses.Response(
+            text="Unauthorized",
+            headers={"Upgrade": "TLS/1.2, HTTP/1.1"},
+            status=401,
+        ),
+    )
+
+    async with ClientSession() as session:
+        ipp = IPP(
+            host=DEFAULT_PRINTER_HOST,
+            port=DEFAULT_PRINTER_PORT,
+            tls=True,
+            base_path=DEFAULT_PRINTER_PATH,
+            session=session,
+        )
+        with pytest.raises(IPPResponseError):
+            assert await ipp.execute(
+                IppOperation.GET_PRINTER_ATTRIBUTES,
+                {
+                    "operation-attributes-tag": {
+                        "requested-attributes": DEFAULT_PRINTER_ATTRIBUTES,
+                    },
+                },
+            )
+
+
+@pytest.mark.asyncio
 async def test_unexpected_response(aresponses: ResponsesMockServer) -> None:
     """Test unexpected response handling."""
     aresponses.add(
