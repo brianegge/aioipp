@@ -14,6 +14,7 @@ from pyipp.exceptions import (
     IPPConnectionUpgradeRequired,
     IPPError,
     IPPParseError,
+    IPPResponseError,
     IPPVersionNotSupportedError,
 )
 
@@ -216,6 +217,58 @@ async def test_http_error426(aresponses: ResponsesMockServer) -> None:
     async with ClientSession() as session:
         ipp = IPP(DEFAULT_PRINTER_URI, session=session)
         with pytest.raises(IPPConnectionUpgradeRequired):
+            assert await ipp.execute(
+                IppOperation.GET_PRINTER_ATTRIBUTES,
+                {
+                    "operation-attributes-tag": {
+                        "requested-attributes": DEFAULT_PRINTER_ATTRIBUTES,
+                    },
+                },
+            )
+
+
+@pytest.mark.asyncio
+async def test_http_error406_upgrade_tls(aresponses: ResponsesMockServer) -> None:
+    """Test HTTP 406 with an Upgrade: TLS header is treated as upgrade required."""
+    aresponses.add(
+        MATCH_DEFAULT_HOST,
+        DEFAULT_PRINTER_PATH,
+        "POST",
+        aresponses.Response(
+            text="<html><body><h1>406 Not Acceptable</h1></body></html>",
+            headers={"Upgrade": "TLS/1.2, HTTP/1.1", "Content-Type": "text/html"},
+            status=406,
+        ),
+    )
+
+    async with ClientSession() as session:
+        ipp = IPP(DEFAULT_PRINTER_URI, session=session)
+        with pytest.raises(IPPConnectionUpgradeRequired):
+            assert await ipp.execute(
+                IppOperation.GET_PRINTER_ATTRIBUTES,
+                {
+                    "operation-attributes-tag": {
+                        "requested-attributes": DEFAULT_PRINTER_ATTRIBUTES,
+                    },
+                },
+            )
+
+
+@pytest.mark.asyncio
+async def test_http_error406_without_upgrade(
+    aresponses: ResponsesMockServer,
+) -> None:
+    """Test HTTP 406 without an Upgrade header stays a response error."""
+    aresponses.add(
+        MATCH_DEFAULT_HOST,
+        DEFAULT_PRINTER_PATH,
+        "POST",
+        aresponses.Response(text="Not Acceptable", status=406),
+    )
+
+    async with ClientSession() as session:
+        ipp = IPP(DEFAULT_PRINTER_URI, session=session)
+        with pytest.raises(IPPResponseError):
             assert await ipp.execute(
                 IppOperation.GET_PRINTER_ATTRIBUTES,
                 {
