@@ -5,6 +5,7 @@ import asyncio
 import pytest
 from aiohttp import ClientResponse, ClientSession
 from aresponses import Response, ResponsesMockServer
+from multidict import CIMultiDict
 
 from pyipp import IPP
 from pyipp.const import DEFAULT_PRINTER_ATTRIBUTES
@@ -252,6 +253,36 @@ async def test_http_error406_upgrade_tls(aresponses: ResponsesMockServer) -> Non
                     },
                 },
             )
+
+
+@pytest.mark.asyncio
+async def test_http_error406_upgrade_tls_separate_lines(
+    aresponses: ResponsesMockServer,
+) -> None:
+    """Test TLS is found when Upgrade spans several field lines."""
+    aresponses.add(
+        MATCH_DEFAULT_HOST,
+        DEFAULT_PRINTER_PATH,
+        "POST",
+        aresponses.Response(
+            text="Not Acceptable",
+            headers=CIMultiDict([("Upgrade", "h2c"), ("Upgrade", "TLS/1.2")]),
+            status=406,
+        ),
+    )
+
+    async with ClientSession() as session:
+        ipp = IPP(DEFAULT_PRINTER_URI, session=session)
+        with pytest.raises(IPPConnectionUpgradeRequired) as err:
+            await ipp.execute(
+                IppOperation.GET_PRINTER_ATTRIBUTES,
+                {
+                    "operation-attributes-tag": {
+                        "requested-attributes": DEFAULT_PRINTER_ATTRIBUTES,
+                    },
+                },
+            )
+        assert err.value.args[1] == {"upgrade": "h2c, TLS/1.2"}
 
 
 @pytest.mark.asyncio
