@@ -134,10 +134,18 @@ class IPP:
                 "Error occurred while communicating with IPP server.",
             ) from exc
 
-        if response.status == 426:
+        # The protocol list may span several Upgrade field lines.
+        upgrade = ", ".join(response.headers.getall("Upgrade", []))
+        # Some printers (e.g. Fuji Xerox DocuPrint) answer plain IPP with
+        # 406 Not Acceptable plus an Upgrade: TLS header instead of 426.
+        # Over TLS such a header cannot be asking for TLS, so ignore it there.
+        if response.status == 426 or (
+            not self.tls and response.status // 100 == 4 and "TLS" in upgrade.upper()
+        ):
+            response.close()
             raise IPPConnectionUpgradeRequired(
                 "Connection upgrade required while communicating with IPP server.",
-                {"upgrade": response.headers.get("Upgrade")},
+                {"upgrade": upgrade or None},
             )
 
         if (response.status // 100) in [4, 5]:

@@ -5,6 +5,7 @@ import asyncio
 import pytest
 from aiohttp import ClientResponse, ClientSession
 from aresponses import Response, ResponsesMockServer
+from multidict import CIMultiDict
 
 from pyipp import IPP
 from pyipp.const import DEFAULT_PRINTER_ATTRIBUTES
@@ -14,6 +15,7 @@ from pyipp.exceptions import (
     IPPConnectionUpgradeRequired,
     IPPError,
     IPPParseError,
+    IPPResponseError,
     IPPVersionNotSupportedError,
 )
 
@@ -216,6 +218,123 @@ async def test_http_error426(aresponses: ResponsesMockServer) -> None:
     async with ClientSession() as session:
         ipp = IPP(DEFAULT_PRINTER_URI, session=session)
         with pytest.raises(IPPConnectionUpgradeRequired):
+            assert await ipp.execute(
+                IppOperation.GET_PRINTER_ATTRIBUTES,
+                {
+                    "operation-attributes-tag": {
+                        "requested-attributes": DEFAULT_PRINTER_ATTRIBUTES,
+                    },
+                },
+            )
+
+
+@pytest.mark.asyncio
+async def test_http_error406_upgrade_tls(aresponses: ResponsesMockServer) -> None:
+    """Test HTTP 406 with an Upgrade: TLS header is treated as upgrade required."""
+    aresponses.add(
+        MATCH_DEFAULT_HOST,
+        DEFAULT_PRINTER_PATH,
+        "POST",
+        aresponses.Response(
+            text="<html><body><h1>406 Not Acceptable</h1></body></html>",
+            headers={"Upgrade": "TLS/1.2, HTTP/1.1", "Content-Type": "text/html"},
+            status=406,
+        ),
+    )
+
+    async with ClientSession() as session:
+        ipp = IPP(DEFAULT_PRINTER_URI, session=session)
+        with pytest.raises(IPPConnectionUpgradeRequired):
+            assert await ipp.execute(
+                IppOperation.GET_PRINTER_ATTRIBUTES,
+                {
+                    "operation-attributes-tag": {
+                        "requested-attributes": DEFAULT_PRINTER_ATTRIBUTES,
+                    },
+                },
+            )
+
+
+@pytest.mark.asyncio
+async def test_http_error406_upgrade_tls_separate_lines(
+    aresponses: ResponsesMockServer,
+) -> None:
+    """Test TLS is found when Upgrade spans several field lines."""
+    aresponses.add(
+        MATCH_DEFAULT_HOST,
+        DEFAULT_PRINTER_PATH,
+        "POST",
+        aresponses.Response(
+            text="Not Acceptable",
+            headers=CIMultiDict([("Upgrade", "h2c"), ("Upgrade", "TLS/1.2")]),
+            status=406,
+        ),
+    )
+
+    async with ClientSession() as session:
+        ipp = IPP(DEFAULT_PRINTER_URI, session=session)
+        with pytest.raises(IPPConnectionUpgradeRequired) as err:
+            await ipp.execute(
+                IppOperation.GET_PRINTER_ATTRIBUTES,
+                {
+                    "operation-attributes-tag": {
+                        "requested-attributes": DEFAULT_PRINTER_ATTRIBUTES,
+                    },
+                },
+            )
+        assert err.value.args[1] == {"upgrade": "h2c, TLS/1.2"}
+
+
+@pytest.mark.asyncio
+async def test_http_error406_without_upgrade(
+    aresponses: ResponsesMockServer,
+) -> None:
+    """Test HTTP 406 without an Upgrade header stays a response error."""
+    aresponses.add(
+        MATCH_DEFAULT_HOST,
+        DEFAULT_PRINTER_PATH,
+        "POST",
+        aresponses.Response(text="Not Acceptable", status=406),
+    )
+
+    async with ClientSession() as session:
+        ipp = IPP(DEFAULT_PRINTER_URI, session=session)
+        with pytest.raises(IPPResponseError):
+            assert await ipp.execute(
+                IppOperation.GET_PRINTER_ATTRIBUTES,
+                {
+                    "operation-attributes-tag": {
+                        "requested-attributes": DEFAULT_PRINTER_ATTRIBUTES,
+                    },
+                },
+            )
+
+
+@pytest.mark.asyncio
+async def test_http_error401_upgrade_tls_over_tls(
+    aresponses: ResponsesMockServer,
+) -> None:
+    """Test a 4xx with an Upgrade: TLS header over TLS stays a response error."""
+    aresponses.add(
+        MATCH_DEFAULT_HOST,
+        DEFAULT_PRINTER_PATH,
+        "POST",
+        aresponses.Response(
+            text="Unauthorized",
+            headers={"Upgrade": "TLS/1.2, HTTP/1.1"},
+            status=401,
+        ),
+    )
+
+    async with ClientSession() as session:
+        ipp = IPP(
+            host=DEFAULT_PRINTER_HOST,
+            port=DEFAULT_PRINTER_PORT,
+            tls=True,
+            base_path=DEFAULT_PRINTER_PATH,
+            session=session,
+        )
+        with pytest.raises(IPPResponseError):
             assert await ipp.execute(
                 IppOperation.GET_PRINTER_ATTRIBUTES,
                 {
