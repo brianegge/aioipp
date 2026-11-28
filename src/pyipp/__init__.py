@@ -2,6 +2,7 @@
 
 from .exceptions import (
     IPPConnectionError,
+    IPPConnectionTLSError,
     IPPConnectionUpgradeRequired,
     IPPError,
     IPPParseError,
@@ -22,6 +23,7 @@ __all__ = [
     "IPP",
     "Counters",
     "IPPConnectionError",
+    "IPPConnectionTLSError",
     "IPPConnectionUpgradeRequired",
     "IPPError",
     "IPPParseError",

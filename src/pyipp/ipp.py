@@ -6,6 +6,7 @@ from asyncio import timeout
 from dataclasses import dataclass
 from importlib import metadata
 from socket import gaierror
+from ssl import SSLCertVerificationError, SSLError
 from struct import error as structerror
 from typing import TYPE_CHECKING, Any
 
@@ -22,6 +23,7 @@ from .const import (
 from .enums import IppOperation, IppStatus
 from .exceptions import (
     IPPConnectionError,
+    IPPConnectionTLSError,
     IPPConnectionUpgradeRequired,
     IPPError,
     IPPParseError,
@@ -128,6 +130,12 @@ class IPP:
         except TimeoutError as exc:
             raise IPPConnectionError(
                 "Timeout occurred while connecting to IPP server.",
+            ) from exc
+        except aiohttp.ClientSSLError as exc:
+            reason = _tls_error_reason(exc)
+            raise IPPConnectionTLSError(
+                f"TLS handshake with IPP server failed: {reason}",  # noqa: EM102
+                reason=reason,
             ) from exc
         except (aiohttp.ClientError, gaierror) as exc:
             raise IPPConnectionError(
@@ -282,3 +290,17 @@ def _parse_error(exc: Exception, response: bytes) -> IPPParseError:
         " hosts and names have been masked.\n" + encode_capture(scrubbed),
     )
     return error
+
+
+def _tls_error_reason(exc: aiohttp.ClientSSLError) -> str:
+    """Return a short description of why a TLS handshake failed."""
+    if isinstance(exc, aiohttp.ClientConnectorCertificateError):
+        err: Exception = exc.certificate_error
+    else:
+        err = exc.os_error
+
+    if isinstance(err, SSLCertVerificationError) and err.verify_message:
+        return f"{err.reason or 'CERTIFICATE_VERIFY_FAILED'}: {err.verify_message}"
+    if isinstance(err, SSLError) and err.reason:
+        return str(err.reason)
+    return str(err) or type(err).__name__
