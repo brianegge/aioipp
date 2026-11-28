@@ -9,6 +9,20 @@ class IPPConnectionError(IPPError):
     """IPP connection exception."""
 
 
+class IPPConnectionTLSError(IPPConnectionError):
+    """TLS handshake with the IPP server failed.
+
+    ``reason`` holds the short cause reported by OpenSSL, such as
+    ``SSLV3_ALERT_HANDSHAKE_FAILURE`` (the printer shares no cipher suite or
+    protocol version with the client) or ``CERTIFICATE_VERIFY_FAILED``.
+    """
+
+    def __init__(self, *args: object, reason: str) -> None:
+        """Initialize the exception."""
+        super().__init__(*args)
+        self.reason = reason
+
+
 class IPPConnectionUpgradeRequired(IPPError):  # noqa: N818
     """IPP connection upgrade requested."""
 
